@@ -21,9 +21,7 @@ export class SongPlayer {
     this.onEvent = () => {};
     this.onState = () => {};
     this.onEnd = () => {};
-    this.onError = () => {};
     this._scheduled = [];        // 自动模式排程的 Tone 事件 id
-    this._manualTimers = [];     // 手动模式 noteOff 定时器（仅兜底，主用音频时钟）
   }
 
   loadSong(song, { bpm, loop } = {}) {
@@ -142,8 +140,6 @@ export class SongPlayer {
       try { t.clear(id); } catch (_) {}
     }
     this._scheduled = [];
-    for (const timer of this._manualTimers) clearTimeout(timer);
-    this._manualTimers = [];
     this.engine.releaseAll();
     if (!silent) {
       this.currentIndex = -1;

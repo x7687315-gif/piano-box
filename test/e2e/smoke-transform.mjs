@@ -4,7 +4,7 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const CHROME = process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-const URL = process.env.APP_URL || 'http://127.0.0.1:5173/';
+const APP_URL = process.env.APP_URL || 'http://127.0.0.1:5173/';
 const MIDI = fileURLToPath(new URL('../../fixtures/demo.mid', import.meta.url));
 const XML = fileURLToPath(new URL('../../fixtures/demo.musicxml', import.meta.url));
 const SHOT = path.join(os.tmpdir(), 'piano-box-transform.png');
@@ -24,7 +24,7 @@ const page = await browser.newPage();
 const errs = [];
 page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
 page.on('pageerror', (e) => errs.push('PAGEERROR: ' + e.message));
-await page.goto(URL, { waitUntil: 'networkidle0', timeout: 30000 });
+await page.goto(APP_URL, { waitUntil: 'networkidle0', timeout: 30000 });
 await sleep(600);
 
 // --- 1. 导入 MusicXML ---

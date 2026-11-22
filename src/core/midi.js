@@ -17,13 +17,21 @@ export function parseMidiToSong(buffer, title = '') {
   const header = midi.header;
   const ppq = header.ticksPerQuarter || 480;
 
-  // --- tempo 分段：以 tick 为界，记录每段的 (startTick, startBeat, secondsPerBeat) ---
+  // --- tempo 分段：midi-file 把 setTempo 事件放在 track 内（类型 'setTempo'，
+  //     字段 microsecondsPerBeat），tick 由 deltaTime 累积。兼容部分版本的 header.tempos。 ---
   const tempoEvents = []; // {tick, bpm}
   for (const t of header.tempos || []) {
-    tempoEvents.push({
-      tick: t.tick ?? t.deltaTime ?? 0,
-      bpm: Math.round(60_000_000 / (t.tempo || 500000)),
-    });
+    tempoEvents.push({ tick: t.tick ?? 0, bpm: Math.round(60_000_000 / (t.tempo || 500000)) });
+  }
+  for (const track of midi.tracks) {
+    let tick = 0;
+    for (const ev of track) {
+      tick += ev.deltaTime || 0;
+      if (ev.type === 'setTempo') {
+        const us = ev.microsecondsPerBeat || 500000;
+        if (us > 0) tempoEvents.push({ tick, bpm: Math.round(60_000_000 / us) });
+      }
+    }
   }
   if (tempoEvents.length === 0) tempoEvents.push({ tick: 0, bpm: DEFAULT_BPM });
   tempoEvents.sort((a, b) => a.tick - b.tick);
@@ -52,8 +60,8 @@ export function parseMidiToSong(buffer, title = '') {
       const t = absoluteTick;
       if (ev.type === 'trackName') {
         trackName = ev.text || `Track ${ti + 1}`;
-      } else if (ev.type === 'channel') {
-        // midi-file 的 channel prefix meta: ev.type === 'channel', ev.channel
+      } else if (ev.type === 'channelPrefix') {
+        // midi-file 的 channel prefix meta（可选，用于无 note 事件的轨道标记）
         if (typeof ev.channel === 'number') channel = ev.channel;
       } else if (ev.type === 'programChange') {
         const num = ev.programNumber ?? ev.value ?? 0;

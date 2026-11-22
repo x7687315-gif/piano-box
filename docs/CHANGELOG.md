@@ -1,5 +1,39 @@
 # 变更说明
 
+## v0.3.0 — 三踏板 + 新手引导 + 自动弹奏实测 + 代码清理（2026-11-22）
+
+### 关键结论
+
+按用户 4 点要求逐条落地：功能实测（自动弹奏）、新手引导、三踏板映射、规范（先调研/实测/清理）。
+62 单测 + 3 套 E2E（11/14/14）+ 自动弹奏实测全部通过；删除 5 处死代码。
+
+### 三踏板答案（用户所问）
+
+| 位置 | 名称 | 作用 | 键盘映射 |
+|---|---|---|---|
+| 右 | 延音 Sustain（CC64） | 松键后继续响 | **F3** |
+| 中 | 持音 Sostenuto（CC66） | 只保持按下瞬间已响的音 | **F2** |
+| 左 | 柔音 Una Corda（CC67） | 音色更轻柔朦胧（非单纯音量） | **F1** |
+
+> 用户记的"暂停踏板"不存在，实际是这三个。选择 F1-F3 是为避开音乐盒"任意键=下一步"的字母键与空格。界面也提供三个可点击踏板按钮。
+
+### 本次实现
+
+| 模块 | 文件 | 说明 |
+|---|---|---|
+| 踏板逻辑 | `src/core/pedal.js` | 纯逻辑：sustain 延迟全部释放、sostenuto 只捕获按下瞬间 held、soft 力度系数；11 单测 |
+| 引擎集成 | `src/audio/engine.js` | noteOff 依据踏板标记 pendingRelease，抬踏板才真 release；noteOn 应用柔音力度 |
+| 新手引导 | `index.html` `src/ui/*` | 首次引导卡片（localStorage 记住）、下一音描边高亮、时间线 next-up 标记 |
+| BPM bug 修复 | `src/core/midi.js` | **重大修复**：midi-file 的 tempo 在 track 的 `setTempo` 事件（字段 `microsecondsPerBeat`），原代码读 `header.tempos` 导致所有 MIDI BPM 错误回退 120；新增回归测试 |
+| 代码清理 | 多处 | 删 `transform.resetTo`、`pedal.remove/onChange/releaseOnLift`、`engine.getPedalState`、`player.onError/_manualTimers`；app 改用 applyTransforms 统一变换路径 |
+| E2E | `test/e2e/smoke-guide-pedal.mjs` | 引导与踏板 14 项 |
+
+### 自动弹奏实测（功能测试）
+
+- **测试曲目说明**：坂本龙一《Merry Christmas Mr. Lawrence》受版权保护，midishow 需登录+Cloudflare、notenhac 直链失效、GitHub 无合规直链；**未获取到原曲 MIDI，不伪造导入成功**。按用户"真实数据自测但不入库"纪律，改用临时目录生成的**结构等效测试曲**（非原曲，4 轨/和弦/踏板/变速）实测。
+- 实测结果：BPM 正确显示 66（bug 修复生效）、87.3 秒、16 事件 27 音符；自动播放 12 秒内事件 0→9、琴键高亮 1~4 个（和弦正确）、无卡死、无控制台错误。
+- 用户如已有该曲 MIDI，可直接拖入应用试听；真曲获取建议：midishow 登录账号后手动下载（仅供个人练习，勿分发）。
+
 ## v0.2.0 — MusicXML 导入 + 变化性编辑（2026-11-22）
 
 ### 关键结论

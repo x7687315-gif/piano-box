@@ -38,6 +38,16 @@
           <input type="file" id="fileInput" accept=".mid,.midi,.musicxml,.xml,audio/midi" hidden />
         </div>
 
+        <div class="beginner-tip" id="beginnerTip" hidden>
+          <div class="tip-head"><strong>第一次玩？</strong><button class="tip-close" id="tipClose" title="关闭">×</button></div>
+          <ul>
+            <li>按<strong>任意字母键</strong>（或点「下一步」）推进一个音符 / 和弦。</li>
+            <li><strong>紫色实心</strong>=正在响，<strong>紫色描边</strong>=下一个。</li>
+            <li>长按不会连发；空格也能下一步。</li>
+            <li>想让音延长？按住 <kbd>F3</kbd> 延音踏板。</li>
+          </ul>
+        </div>
+
         <div class="song-info" id="songInfo" hidden>
           <div class="song-title-row">
             <span class="song-name" id="songName">—</span>
@@ -86,6 +96,21 @@
             <input type="range" id="volumeSlider" min="0" max="100" value="70" />
           </div>
           <label class="check-row"><input type="checkbox" id="loopChk" /> 循环播放</label>
+
+          <div class="pedal-section" id="pedalSection">
+            <div class="section-head"><h2>踏板</h2><span class="pedal-hint-small">F1 柔音 · F2 持音 · F3 延音</span></div>
+            <div class="pedal-row">
+              <button class="pedal-btn" id="pedalSoft" data-pedal="soft" title="左踏板：柔音 una corda（音色更轻柔），快捷键 F1">
+                <span class="pedal-dot"></span><span class="pedal-name">柔音</span><kbd>F1</kbd>
+              </button>
+              <button class="pedal-btn" id="pedalSostenuto" data-pedal="sostenuto" title="中踏板：持音，只保持按下时已在响的音，快捷键 F2">
+                <span class="pedal-dot"></span><span class="pedal-name">持音</span><kbd>F2</kbd>
+              </button>
+              <button class="pedal-btn" id="pedalSustain" data-pedal="sustain" title="右踏板：延音，松键后继续响，快捷键 F3">
+                <span class="pedal-dot"></span><span class="pedal-name">延音</span><kbd>F3</kbd>
+              </button>
+            </div>
+          </div>
 
           <div class="transform-section" id="transformSection">
             <div class="section-head">

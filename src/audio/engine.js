@@ -6,6 +6,7 @@
  * 加载失败自动降级为 Tone.PolySynth（保证离线也能发声）。
  */
 import * as Tone from 'tone';
+import { PedalController, PEDAL } from '../core/pedal.js';
 
 // Salamander 基准音 → 采样文件名（与 public/samples 中 30 个 mp3 对应）
 const SAMPLE_MAP = {
@@ -27,7 +28,8 @@ export class AudioEngine {
     this.master = null;
     this.volume = 0.7; // 0..1
     this.source = null; // 'sampler' | 'synth'
-    this.activeVoices = new Map(); // key -> {midi, ...}
+    this.activeVoices = new Map(); // key -> {midi, note, pendingRelease}
+    this.pedal = new PedalController();
     this.onStatus = () => {};
     this.onError = () => {};
   }
@@ -94,31 +96,51 @@ export class AudioEngine {
     const id = key ?? `n_${midi}_${Math.random()}`;
     // 避免同一 key 重复 attack（长按/重复输入）
     if (this.activeVoices.has(id)) return;
+    // 柔音踏板：降低力度（真实钢琴是音色变化，这里用增益近似）
+    const vel = Math.max(0.05, velocity * this.pedal.velocityScale());
     try {
       if (this.source === 'sampler' && this.sampler) {
-        // velocity 通过动态增益近似：Sampler 本身不直接吃 velocity，用 volume 细分
-        this.sampler.triggerAttack(note, when, Math.max(0.05, velocity));
+        this.sampler.triggerAttack(note, when, vel);
       } else if (this.fallback) {
-        this.fallback.triggerAttack(note, when, Math.max(0.05, velocity));
+        this.fallback.triggerAttack(note, when, vel);
       }
-      this.activeVoices.set(id, { midi, note });
+      this.activeVoices.set(id, { midi, note, pendingRelease: false });
     } catch (err) {
       console.warn('[AudioEngine] noteOn failed', err);
     }
   }
 
-  /** 释放一个音符。key 必须与 noteOn 对应；不传 key 则释放该 midi 的所有 voice。 */
+  /** 释放一个音符。踏板按下时不立即释放，标记 pending 等抬踏板再放。 */
   noteOff(midi, key = null, time = undefined) {
     if (!this.ready) return;
     const when = time ?? Tone.now();
-    const note = Tone.Frequency(midi, 'midi').toNote();
+    const targets = [];
     if (key && this.activeVoices.has(key)) {
-      this._releaseOne(key, note, when);
-      return;
+      targets.push([key, this.activeVoices.get(key)]);
+    } else {
+      for (const [id, v] of [...this.activeVoices]) if (v.midi === midi) targets.push([id, v]);
     }
-    // 释放所有匹配 midi 的 voice
-    for (const [id, v] of [...this.activeVoices]) {
-      if (v.midi === midi) this._releaseOne(id, v.note, when);
+    for (const [id, v] of targets) {
+      const defer = this.pedal.deferRelease(id);
+      if (defer) {
+        v.pendingRelease = defer; // 延音/持音踏板保持，抬踏板时释放
+      } else {
+        this._releaseOne(id, v.note, when);
+      }
+    }
+  }
+
+  /** 设置踏板（sostenuto 按下时捕获当前 held keys）。 */
+  setPedal(pedal, down) {
+    const held = [...this.activeVoices.keys()];
+    const changed = this.pedal.set(pedal, down, held);
+    if (!changed) return;
+    if (!down) {
+      // 抬起踏板：只释放被该踏板保持的音符（pendingRelease 是唯一来源）
+      const when = Tone.now();
+      for (const [id, v] of [...this.activeVoices]) {
+        if (v.pendingRelease === pedal) this._releaseOne(id, v.note, when);
+      }
     }
   }
 
@@ -137,6 +159,7 @@ export class AudioEngine {
 
   /** 立刻释放全部正在发声的音符（停止/换曲/切后台用，防 stuck notes）。 */
   releaseAll() {
+    this.pedal.reset();
     if (!this.ready) return;
     const when = Tone.now();
     for (const [id, v] of [...this.activeVoices]) {

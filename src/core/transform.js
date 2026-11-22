@@ -63,7 +63,3 @@ function mapNotes(song, eventIndices, fn) {
     }),
   };
 }
-
-/** 生成"某首曲子的重置副本"的辅助：从原始曲再施加一组新操作。
- * 使用方式：const view = applyTransforms(originalSong, ops)。 */
-export function resetTo(song) { return song; }

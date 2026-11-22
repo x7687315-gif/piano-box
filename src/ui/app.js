@@ -6,7 +6,7 @@ import * as Tone from 'tone';
 import { parseMidiToSong } from '../core/midi.js';
 import { parseMusicXmlToSong } from '../core/musicxml.js';
 import { filterSongByTracks, songStats } from '../core/song.js';
-import { transpose, scaleDuration, scaleVelocity } from '../core/transform.js';
+import { transpose, scaleDuration, scaleVelocity, applyTransforms } from '../core/transform.js';
 import { AudioEngine } from '../audio/engine.js';
 import { SongPlayer } from '../player/song-player.js';
 import { createMusicBoxInput } from '../input/music-box-input.js';
@@ -101,15 +101,22 @@ export function createApp() {
   window.addEventListener('resize', () => { /* 键盘用固定像素宽，无需重排 */ });
 
   function clearHighlights() {
-    for (const el of keyEls.values()) el.classList.remove('active');
+    for (const el of keyEls.values()) el.classList.remove('active', 'hint');
   }
-  function highlightNotes(notes) {
+  function highlightNotes(notes, nextNotes = []) {
     clearHighlights();
     let firstEl = null;
+    // 新手引导：即将演奏的音符用描边提示（不与当前实心高亮冲突）
+    const nextSet = new Set((nextNotes || []).map((n) => n.midi ?? n));
+    for (const m of nextSet) {
+      const el = keyEls.get(m);
+      if (el && !notes.some((n) => (n.midi ?? n) === m)) el.classList.add('hint');
+    }
     for (const n of notes) {
       const m = n.midi ?? n;
       const el = keyEls.get(m); // 完整 88 键，直接按真实音高定位，不移调
       if (el) {
+        el.classList.remove('hint');
         el.classList.add('active');
         if (!firstEl) firstEl = el;
       }
@@ -184,11 +191,15 @@ export function createApp() {
 
     // 高亮 + 时间线当前行：用 Tone.Draw 对齐音频时钟，避免音画不同步
     const paint = () => {
-      if (ev) highlightNotes(ev.notes);
-      document.querySelectorAll('.tl-row').forEach((r) => r.classList.remove('current'));
-      const row = document.querySelector(`.tl-row[data-index="${index}"]`);
+      // 未开播时（index<0）也把第一个事件作为"下一步"提示高亮
+      const showIdx = index < 0 ? 0 : index;
+      const showEv = index < 0 ? activeSong.events[0] : ev;
+      const nextEvForHint = activeSong.events[showIdx + 1];
+      if (showEv) highlightNotes(showEv.notes, nextEvForHint ? nextEvForHint.notes : []);
+      document.querySelectorAll('.tl-row').forEach((r) => r.classList.remove('current', 'next-up'));
+      const row = document.querySelector(`.tl-row[data-index="${showIdx}"]`);
       if (row) {
-        row.classList.add('current');
+        row.classList.add(index < 0 ? 'next-up' : 'current');
         row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       }
     };
@@ -234,6 +245,10 @@ export function createApp() {
       const allRadio = document.querySelector('input[name="transformScope"][value="all"]');
       if (allRadio) { allRadio.checked = true; }
       setupSong(rawSong);
+      // 新手引导：仅首次显示，关闭后记住
+      let seen = false;
+      try { seen = localStorage.getItem('pianobox-tip-seen') === '1'; } catch (_) {}
+      if (!seen) $('beginnerTip').hidden = false;
       banner(`已导入 ${rawSong.source === 'musicxml' ? 'MusicXML' : 'MIDI'}：${rawSong.title}`);
     } catch (err) {
       console.error(err);
@@ -280,11 +295,11 @@ export function createApp() {
     const base = filterSongByTracks(rawSong, ids);
     const scope = transformState.scope === 'selected' && transformState.selected.size
       ? [...transformState.selected] : null;
-    let s = base;
-    if (transformState.semitones) s = transpose(s, transformState.semitones, scope);
-    if (transformState.duration !== 1) s = scaleDuration(s, transformState.duration, scope);
-    if (transformState.velocity !== 1) s = scaleVelocity(s, transformState.velocity, scope);
-    activeSong = s;
+    const ops = [];
+    if (transformState.semitones) ops.push((s) => transpose(s, transformState.semitones, scope));
+    if (transformState.duration !== 1) ops.push((s) => scaleDuration(s, transformState.duration, scope));
+    if (transformState.velocity !== 1) ops.push((s) => scaleVelocity(s, transformState.velocity, scope));
+    activeSong = applyTransforms(base, ops);
 
     player.loadSong(activeSong, { bpm: +$('bpmSlider').value, loop: $('loopChk').checked });
     player.setBpm(+$('bpmSlider').value);
@@ -336,6 +351,10 @@ export function createApp() {
   ['dragleave', 'drop'].forEach((evt) => dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.remove('dragover'); }));
   dz.addEventListener('drop', (e) => importFile(e.dataTransfer.files[0]));
   $('changeSong').addEventListener('click', () => $('fileInput').click());
+  $('tipClose').addEventListener('click', () => {
+    $('beginnerTip').hidden = true;
+    try { localStorage.setItem('pianobox-tip-seen', '1'); } catch (_) {}
+  });
 
   // ---- 轨道选择 ----
   $('mergeTracks').addEventListener('change', (e) => {
@@ -381,6 +400,37 @@ export function createApp() {
     player.setVolume(v / 100);
   });
   $('loopChk').addEventListener('change', (e) => player.setLoop(e.target.checked));
+
+  // ---- 三踏板：按钮 + 功能键 F1/F2/F3（避开音乐盒"任意键=下一步"的字母键）----
+  const pedalKeyMap = { F1: 'soft', F2: 'sostenuto', F3: 'sustain' };
+  const pedalBtnMap = { soft: $('pedalSoft'), sostenuto: $('pedalSostenuto'), sustain: $('pedalSustain') };
+  function setPedal(pedal, down) {
+    engine.setPedal(pedal, down);
+    const btn = pedalBtnMap[pedal];
+    if (btn) btn.classList.toggle('down', down);
+  }
+  for (const [pedal, btn] of Object.entries(pedalBtnMap)) {
+    // pointerdown/up 支持鼠标与触摸；松开/取消都抬起
+    btn.addEventListener('pointerdown', (e) => { e.preventDefault(); setPedal(pedal, true); });
+    btn.addEventListener('pointerup', () => setPedal(pedal, false));
+    btn.addEventListener('pointercancel', () => setPedal(pedal, false));
+    btn.addEventListener('pointerleave', () => setPedal(pedal, false));
+  }
+  window.addEventListener('keydown', (e) => {
+    const pedal = pedalKeyMap[e.code];
+    if (!pedal || e.repeat) return;
+    e.preventDefault();
+    setPedal(pedal, true);
+  });
+  window.addEventListener('keyup', (e) => {
+    const pedal = pedalKeyMap[e.code];
+    if (!pedal) return;
+    e.preventDefault();
+    setPedal(pedal, false);
+  });
+  window.addEventListener('blur', () => {
+    for (const p of Object.keys(pedalBtnMap)) setPedal(p, false);
+  });
 
   // ---- 变化性控件 ----
   const scopeRadios = document.querySelectorAll('input[name="transformScope"]');

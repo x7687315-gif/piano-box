@@ -22,6 +22,24 @@ test('解析出正确的元信息：bpm/ppq/duration', () => {
   assert.equal(song.title, 'Demo Song');
 });
 
+test('MIDI 内嵌 tempo（setTempo）被正确解析为 BPM 与分段 tempoMap', () => {
+  // midi-file 把 setTempo 放在 track 内，字段 microsecondsPerBeat，tick 由 deltaTime 累积
+  // 用内联构造的最小 SMF：tempo=90（us=666667），PPQ=480
+  const VLQ = (n) => { const b = [n & 0x7f]; n >>= 7; while (n) { b.unshift((n & 0x7f) | 0x80); n >>= 7; } return Buffer.from(b); };
+  const us = Math.round(60e6 / 90);
+  const trk = Buffer.concat([
+    VLQ(0), Buffer.from([0xFF, 0x51, 0x03, (us >> 16) & 255, (us >> 8) & 255, us & 255]),
+    VLQ(0), Buffer.from([0xFF, 0x2F, 0x00]),
+  ]);
+  const hdr = Buffer.alloc(6); hdr.writeUInt16BE(1, 0); hdr.writeUInt16BE(1, 2); hdr.writeUInt16BE(480, 4);
+  const hdrLen = Buffer.alloc(4); hdrLen.writeUInt32BE(6);
+  const len = Buffer.alloc(4); len.writeUInt32BE(trk.length);
+  const smf = Buffer.concat([Buffer.from('MThd'), hdrLen, hdr, Buffer.from('MTrk'), len, trk]);
+  const s = parseMidiToSong(smf, 'Tempo Test');
+  assert.equal(s.bpm, 90, 'BPM 应从 setTempo 读取，而非固定 120');
+  assert.deepEqual(s.tempoMap, [{ tick: 0, bpm: 90 }]);
+});
+
 test('解析出全部轨道及每轨音符数', () => {
   assert.equal(song.tracks.length, 3); // Conductor + Melody + Chords
   const melody = song.tracks.find((t) => t.name === 'Melody');
