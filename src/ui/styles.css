@@ -118,18 +118,17 @@ input[type=range] { accent-color: var(--accent); width: 100%; }
 .progress-track { height: 5px; background: var(--surface-2); border-radius: 3px; overflow: hidden; }
 .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width .2s ease; }
 
-/* piano */
-.piano-wrap { margin-top: 4px; }
+/* piano —— 完整 88 键，横向可滚动 */
+.piano-wrap { margin-top: 4px; overflow-x: auto; overflow-y: hidden; padding-bottom: 6px; scroll-behavior: smooth; }
 .piano { position: relative; height: 130px; display: flex; user-select: none; }
 .key {
-  position: relative; flex: 1; border: 1px solid #d8d5cc; border-radius: 0 0 6px 6px;
+  position: relative; flex: 0 0 26px; width: 26px; border: 1px solid #d8d5cc; border-radius: 0 0 6px 6px;
   background: linear-gradient(#fff, #faf9f6); cursor: pointer; transition: background .08s;
 }
 .key:first-child { border-radius: 6px 0 6px 6px; }
-.key:last-child { border-radius: 0 6px 6px 6px; }
 .key.black {
-  position: absolute; top: 0; height: 62%; width: 5.2%; background: linear-gradient(#3a3936, #23221f);
-  border: 1px solid #111; border-radius: 0 0 5px 5px; z-index: 2; transform: translateX(-50%);
+  position: absolute; top: 0; height: 62%; width: 16px; background: linear-gradient(#3a3936, #23221f);
+  border: 1px solid #111; border-radius: 0 0 5px 5px; z-index: 2; flex: none;
 }
 .key.active { background: linear-gradient(#a9a2ea, #8c82dd); border-color: var(--accent); }
 .key.black.active { background: linear-gradient(#6f68c4, #534ab7); }

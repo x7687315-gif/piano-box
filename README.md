@@ -24,7 +24,7 @@
 前置：Node.js 18+（已在 Node 22 验证）。
 
 ```bash
-cd C:\Users\86159\Desktop\代码\piano-box
+cd piano-box
 npm install
 npm run dev
 ```

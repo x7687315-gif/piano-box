@@ -51,14 +51,19 @@ export function createApp() {
     window.addEventListener(evt, () => ensureAudio(), { once: true })
   );
 
-  // ---- 钢琴键盘渲染（C3..C6 两个多八度，足够高亮展示） ----
-  const PIANO_LOW = 48, PIANO_HIGH = 84;
+  // ---- 钢琴键盘渲染：完整 88 键（A0=21 .. C8=108） ----
+  // 界面琴键只是"可视化显示窗口"，音域由 MIDI 音高(0-127)决定，与画多少键无关。
+  // 本地 30 个采样点 + Tone.Sampler 自动移调，覆盖全部 88 键。
+  const PIANO_LOW = 21, PIANO_HIGH = 108;
+  const WHITE_W = 26; // 每白键像素宽（可横向滚动）
   const keyEls = new Map();
   function buildPiano() {
     const piano = $('piano');
     piano.innerHTML = '';
     const blackSet = new Set([1, 3, 6, 8, 10]);
-    // 白键
+    // 白键：按顺序 flex 排列
+    let whiteIndex = 0;
+    const whitePos = new Map();
     for (let m = PIANO_LOW; m <= PIANO_HIGH; m++) {
       if (blackSet.has(m % 12)) continue;
       const k = document.createElement('div');
@@ -70,47 +75,46 @@ export function createApp() {
       k.appendChild(lbl);
       piano.appendChild(k);
       keyEls.set(m, k);
+      whitePos.set(m, whiteIndex * WHITE_W);
+      whiteIndex++;
     }
-    // 黑键：定位在前一个白键右侧
-    const whites = [...piano.querySelectorAll('.key.white')];
+    // 黑键：定位在前一个白键的右边界（跨前一个白键一半）
+    piano.style.width = (whiteIndex * WHITE_W) + 'px';
     for (let m = PIANO_LOW; m <= PIANO_HIGH; m++) {
       if (!blackSet.has(m % 12)) continue;
-      let wi = 0;
-      for (let p = m - 1; p >= PIANO_LOW; p--) {
-        const idx = whites.findIndex((w) => +w.dataset.midi === p);
-        if (idx >= 0) { wi = idx; break; }
-      }
-      const anchor = whites[wi];
-      if (!anchor) continue;
+      let anchorM = m - 1;
+      while (anchorM >= PIANO_LOW && blackSet.has(anchorM % 12)) anchorM--;
+      if (!whitePos.has(anchorM)) continue;
       const k = document.createElement('div');
       k.className = 'key black';
       k.dataset.midi = m;
-      const lbl = document.createElement('span');
-      lbl.className = 'klabel';
-      lbl.textContent = '';
-      k.appendChild(lbl);
-      // 用 anchor 的 offsetLeft + 宽度定位
-      const pos = anchor.offsetLeft + anchor.offsetWidth;
-      k.style.left = pos + 'px';
+      k.style.left = (whitePos.get(anchorM) + WHITE_W - 8) + 'px';
       piano.appendChild(k);
       keyEls.set(m, k);
     }
   }
   buildPiano();
-  window.addEventListener('resize', () => { /* 布局用百分比，无需重排 */ });
+  window.addEventListener('resize', () => { /* 键盘用固定像素宽，无需重排 */ });
 
   function clearHighlights() {
     for (const el of keyEls.values()) el.classList.remove('active');
   }
   function highlightNotes(notes) {
     clearHighlights();
+    let firstEl = null;
     for (const n of notes) {
-      // 移调到可见范围
-      let m = n.midi ?? n;
-      while (m < PIANO_LOW) m += 12;
-      while (m > PIANO_HIGH) m -= 12;
-      const el = keyEls.get(m);
-      if (el) el.classList.add('active');
+      const m = n.midi ?? n;
+      const el = keyEls.get(m); // 完整 88 键，直接按真实音高定位，不移调
+      if (el) {
+        el.classList.add('active');
+        if (!firstEl) firstEl = el;
+      }
+    }
+    // 自动滚动键盘容器，让当前音始终可见
+    if (firstEl) {
+      const wrap = $('piano').parentElement;
+      const target = firstEl.offsetLeft - wrap.clientWidth / 2 + WHITE_W;
+      wrap.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
     }
   }
 
