@@ -1,5 +1,35 @@
 # 变更说明
 
+## v0.2.0 — MusicXML 导入 + 变化性编辑（2026-11-22）
+
+### 关键结论
+
+按"下一步建议"完成两项优先级最高功能，均复用既有 Song/引擎，**未改动音频引擎与播放器核心**。52 单元测试 + 14 项新功能 E2E + 21 项原功能回归全部通过。
+
+### 本次实现了什么
+
+| 模块 | 文件 | 说明 |
+|---|---|---|
+| MusicXML 解析 | `src/core/musicxml.js` | 原生 DOMParser 零依赖；step/alter/octave→MIDI、divisions→beat、chord 和弦、tie 连音、transpose 移调乐器、metronome BPM |
+| 变化性变换 | `src/core/transform.js` | 移调(±半音)、时长缩放、力度缩放；纯函数不可变；支持全曲/选中事件；可重置 |
+| UI 集成 | `index.html` `src/ui/*` | 导入接受 .musicxml/.xml；变化性面板（3 滑块 + 作用域 + 徽标 + 重置）；时间线可点击选中事件 |
+| 测试 | `test/musicxml.test.js` `test/transform.test.js` `test/e2e/smoke-transform.mjs` | 26 新增单测 + 14 项 E2E |
+| 调研 | `docs/PREFLIGHT_ROUND2.md` | github-preflight 快速核查，含检索台账与选型 |
+
+### 决策依据
+
+- MusicXML 解析**不引 OSMD（2–3MB 渲染库）**、不引 API 不稳的 @stringsync/musicxml；用原生 DOMParser 只读官方 MIDI-compatible 字段，零依赖、可控、离线。
+- 变换不引 tonal（~10KB）：半音移调=整数加减、时值/力度=乘系数，纯函数几行可测，避免过度设计。
+- 稳定性修复：xmldom 抛异常与浏览器 parsererror 两种错误行为统一为"MusicXML 格式错误"；导入新曲同步重置滑块 UI 避免残留误导。
+
+### 尚未实现（更新）
+
+1. 自由钢琴模式（引擎已就绪，仅缺输入层）
+2. tempo map 逐段变速（自动播放用单一 BPM）
+3. 多力度分层采样（Tone.js #1034 未支持）
+4. 音乐盒音色、标准 piano roll
+5. JSON 乐曲导入、桌面 EXE 打包
+
 ## v0.1.0 — 第一阶段：音乐盒模式（2026-11-22）
 
 ### 关键结论

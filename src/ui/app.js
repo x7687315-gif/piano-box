@@ -4,7 +4,9 @@
  */
 import * as Tone from 'tone';
 import { parseMidiToSong } from '../core/midi.js';
+import { parseMusicXmlToSong } from '../core/musicxml.js';
 import { filterSongByTracks, songStats } from '../core/song.js';
+import { transpose, scaleDuration, scaleVelocity } from '../core/transform.js';
 import { AudioEngine } from '../audio/engine.js';
 import { SongPlayer } from '../player/song-player.js';
 import { createMusicBoxInput } from '../input/music-box-input.js';
@@ -20,6 +22,8 @@ export function createApp() {
   let rawSong = null;
   let activeSong = null;
   let mode = 'manual';
+  // 变化性状态：记录待应用的变换参数（相对"轨道筛选后的基础曲"）
+  let transformState = { semitones: 0, duration: 1, velocity: 1, scope: 'all', selected: new Set() };
 
   // ---- 状态提示 ----
   function banner(msg, isError = false) {
@@ -145,8 +149,16 @@ export function createApp() {
       note.className = 'tl-note';
       note.textContent = ev.notes.map((n) => noteName(n.midi)).join(' ');
       row.append(idx, bar, note);
+      row.title = '点击选中/取消该事件，变化性控制将只作用于选中事件';
+      row.addEventListener('click', () => {
+        if (transformState.selected.has(i)) transformState.selected.delete(i);
+        else transformState.selected.add(i);
+        if (transformState.scope === 'selected') syncActiveSong();
+        else updateTransformUI();
+      });
       wrap.appendChild(row);
     });
+    updateTransformUI();
   }
 
   function updateVisual(index, ev, audioTime) {
@@ -196,22 +208,36 @@ export function createApp() {
   };
   player.onEnd = () => banner('乐曲演奏结束');
 
-  // ---- 导入乐曲 ----
+  // ---- 导入乐曲（MIDI / MusicXML 双格式，统一进入 Song） ----
   async function importFile(file) {
     if (!file) return;
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (ext !== 'mid' && ext !== 'midi') {
-      banner('仅支持标准 MIDI 文件（.mid / .midi）', true);
-      return;
-    }
+    const name = file.name;
+    const ext = name.split('.').pop()?.toLowerCase();
+    const baseTitle = name.replace(/\.(mid|midi|musicxml|xml|mxl)$/i, '');
     try {
-      const buf = await file.arrayBuffer();
-      rawSong = parseMidiToSong(buf, file.name.replace(/\.(mid|midi)$/i, ''));
+      if (ext === 'mid' || ext === 'midi') {
+        rawSong = parseMidiToSong(await file.arrayBuffer(), baseTitle);
+      } else if (ext === 'musicxml' || ext === 'xml') {
+        rawSong = parseMusicXmlToSong(await file.text(), baseTitle);
+      } else {
+        banner('仅支持 MIDI（.mid/.midi）或 MusicXML（.musicxml/.xml）', true);
+        return;
+      }
+      // 导入新曲时清空变换状态，并同步滑块 UI 到默认（避免残留误导）
+      transformState = { semitones: 0, duration: 1, velocity: 1, scope: 'all', selected: new Set() };
+      $('transposeSlider').value = 0;
+      $('durationSlider').value = 100;
+      $('velocitySlider').value = 100;
+      $('transposeValue').textContent = '0 半音';
+      $('durationValue').textContent = '1.00×';
+      $('velocityValue').textContent = '1.00×';
+      const allRadio = document.querySelector('input[name="transformScope"][value="all"]');
+      if (allRadio) { allRadio.checked = true; }
       setupSong(rawSong);
-      banner(`已导入：${rawSong.title}`);
+      banner(`已导入 ${rawSong.source === 'musicxml' ? 'MusicXML' : 'MIDI'}：${rawSong.title}`);
     } catch (err) {
       console.error(err);
-      banner('MIDI 文件解析失败：' + (err.message || '格式错误'), true);
+      banner('乐曲解析失败：' + (err.message || '格式错误'), true);
     }
   }
 
@@ -250,11 +276,52 @@ export function createApp() {
     if (!rawSong) return;
     const merged = $('mergeTracks').checked;
     const ids = merged ? [] : [...$('trackList').querySelectorAll('input:checked')].map((i) => +i.value);
-    activeSong = filterSongByTracks(rawSong, ids);
+    // 基础曲 = 轨道筛选结果；在其上叠加变换，得到当前演奏曲
+    const base = filterSongByTracks(rawSong, ids);
+    const scope = transformState.scope === 'selected' && transformState.selected.size
+      ? [...transformState.selected] : null;
+    let s = base;
+    if (transformState.semitones) s = transpose(s, transformState.semitones, scope);
+    if (transformState.duration !== 1) s = scaleDuration(s, transformState.duration, scope);
+    if (transformState.velocity !== 1) s = scaleVelocity(s, transformState.velocity, scope);
+    activeSong = s;
+
     player.loadSong(activeSong, { bpm: +$('bpmSlider').value, loop: $('loopChk').checked });
     player.setBpm(+$('bpmSlider').value);
     renderTimeline(activeSong);
     updateVisual(-1, null);
+    updateTransformUI();
+  }
+
+  // ---- 变化性编辑 UI ----
+  function updateTransformUI() {
+    const tag = $('transformScopeTag');
+    if (tag) {
+      const n = transformState.selected.size;
+      tag.textContent = transformState.scope === 'selected'
+        ? (n ? `已选 ${n} 个事件` : '选中事件（未选）') : '全曲';
+    }
+    const badge = $('transformBadge');
+    if (badge) {
+      const active = transformState.semitones !== 0 || transformState.duration !== 1 || transformState.velocity !== 1;
+      badge.textContent = active ? '已应用变换' : '原始';
+      badge.className = 'transform-badge' + (active ? ' on' : '');
+    }
+    // 高亮选中的时间线行
+    document.querySelectorAll('.tl-row').forEach((r) => {
+      r.classList.toggle('selected', transformState.selected.has(+r.dataset.index));
+    });
+  }
+
+  function applyTransformUI() {
+    if (!rawSong) return;
+    transformState.semitones = +$('transposeSlider').value;
+    transformState.duration = +$('durationSlider').value / 100;
+    transformState.velocity = +$('velocitySlider').value / 100;
+    $('transposeValue').textContent = (transformState.semitones > 0 ? '+' : '') + transformState.semitones + ' 半音';
+    $('durationValue').textContent = transformState.duration.toFixed(2) + '×';
+    $('velocityValue').textContent = transformState.velocity.toFixed(2) + '×';
+    syncActiveSong();
   }
 
   // ---- 文件交互 ----
@@ -314,6 +381,30 @@ export function createApp() {
     player.setVolume(v / 100);
   });
   $('loopChk').addEventListener('change', (e) => player.setLoop(e.target.checked));
+
+  // ---- 变化性控件 ----
+  const scopeRadios = document.querySelectorAll('input[name="transformScope"]');
+  scopeRadios.forEach((r) => r.addEventListener('change', (e) => {
+    transformState.scope = e.target.value;
+    syncActiveSong();
+  }));
+  ['transposeSlider', 'durationSlider', 'velocitySlider'].forEach((id) => {
+    $(id).addEventListener('input', applyTransformUI);
+  });
+  $('resetTransform').addEventListener('click', () => {
+    transformState.semitones = 0;
+    transformState.duration = 1;
+    transformState.velocity = 1;
+    transformState.selected.clear();
+    $('transposeSlider').value = 0;
+    $('durationSlider').value = 100;
+    $('velocitySlider').value = 100;
+    $('transposeValue').textContent = '0 半音';
+    $('durationValue').textContent = '1.00×';
+    $('velocityValue').textContent = '1.00×';
+    syncActiveSong();
+    banner('已重置所有变化');
+  });
 
   // ---- 音乐盒键盘输入（独立控制层）----
   createMusicBoxInput({
