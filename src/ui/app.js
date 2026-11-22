@@ -351,6 +351,25 @@ export function createApp() {
   ['dragleave', 'drop'].forEach((evt) => dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.remove('dragover'); }));
   dz.addEventListener('drop', (e) => importFile(e.dataTransfer.files[0]));
   $('changeSong').addEventListener('click', () => $('fileInput').click());
+  // 本地曲库快捷入口（local/ 被 gitignore，仅本机可用）
+  const QUICK_URL = `${import.meta.env.BASE_URL}local/Merry%20Christmas%20Mr.%20Lawrence.mid`;
+  fetch(QUICK_URL, { method: 'HEAD' }).then((r) => { if (r.ok) $('quickLawrence').hidden = false; }).catch(() => {});
+  $('quickLawrence').addEventListener('click', async () => {
+    try {
+      const r = await fetch(QUICK_URL);
+      if (!r.ok) throw new Error('本地曲文件不可用');
+      const buf = await r.arrayBuffer();
+      rawSong = parseMidiToSong(buf, 'Merry Christmas Mr. Lawrence');
+      transformState = { semitones: 0, duration: 1, velocity: 1, scope: 'all', selected: new Set() };
+      $('transposeSlider').value = 0;
+      $('durationSlider').value = 100;
+      $('velocitySlider').value = 100;
+      setupSong(rawSong);
+      banner(`已加载本地曲：${rawSong.title}`);
+    } catch (err) {
+      banner('加载本地曲失败：' + (err.message || '未知错误'), true);
+    }
+  });
   $('tipClose').addEventListener('click', () => {
     $('beginnerTip').hidden = true;
     try { localStorage.setItem('pianobox-tip-seen', '1'); } catch (_) {}

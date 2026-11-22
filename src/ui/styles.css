@@ -70,6 +70,9 @@ body {
 .dz-title { margin: 0; font-size: 14px; font-weight: 600; }
 .dz-hint { margin: 4px 0 0; font-size: 12px; color: var(--ink-3); }
 
+.quick-song { margin-top: 12px; width: 100%; border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent); border-radius: 8px; padding: 9px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.quick-song:hover { background: #ebe8fb; }
+
 /* beginner tip */
 .beginner-tip { background: var(--accent-soft); border: 1px solid #d5d1f5; border-radius: var(--radius-sm); padding: 12px 14px; font-size: 12px; color: #3c3489; }
 .tip-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
@@ -183,7 +186,7 @@ input[type=range] { accent-color: var(--accent); width: 100%; }
 .empty-pill { font-size: 12px; color: var(--ink-3); }
 
 /* timeline */
-.timeline { flex: 1; min-height: 120px; border-top: 1px solid var(--line); padding-top: 12px; overflow-x: auto; }
+.timeline { flex: 1; min-height: 120px; max-height: 360px; border-top: 1px solid var(--line); padding-top: 12px; overflow: auto; }
 .timeline-empty { font-size: 12px; color: var(--ink-3); text-align: center; padding: 30px 0; }
 .tl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .tl-index { font-size: 10px; color: var(--ink-3); width: 24px; text-align: right; font-variant-numeric: tabular-nums; }

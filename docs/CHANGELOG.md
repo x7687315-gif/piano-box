@@ -1,5 +1,26 @@
 # 变更说明
 
+## v0.3.2 — 导入《Merry Christmas Mr. Lawrence》+ 大曲时间线优化（2026-11-22）
+
+### 曲子获取（实测，非伪造）
+
+用户要求导入坂本龙一《Merry Christmas Mr. Lawrence》。经多途径实测：midishow（Cloudflare+登录）、fullpartituras（登录+12s 等待）、notenhac（直链失效）均不可自动获取。**最终从 BitMidi 拿到真 MIDI**：页面 https://bitmidi.com/lawrence-mid → 直链 https://bitmidi.com/uploads/67818.mid（21.9KB）。
+
+内容验证：2250 音符、12 轨（11 轨有音符）、多段变速 83→73→106→130→119 BPM、音域 A1–G7、音高分布 G/C/D 为主（降 D 大调/降 B 小调五声特征）——确认是该曲的多乐器版本。
+
+### 实测结果
+
+导入后：BPM 83（内嵌变速正确解析）、225.8 秒、1050 事件、2250 音符；自动播放 10 秒内事件 0→3、琴键高亮正常、无控制台错误。
+
+### 本地曲库与快捷加载
+
+- 曲子存放 `local/Merry Christmas Mr. Lawrence.mid`，**被 .gitignore 排除，不入库不推送**（遵守用户"真实数据自测但不入库"纪律）。
+- 导入区新增"♪ 加载《Merry Christmas Mr. Lawrence》"按钮：启动时 HEAD 探测文件存在才显示，点击 fetch 后直接导入；一键加载验证通过。
+
+### 大曲时间线性能优化
+
+实测发现 1050 事件把页面撑到 **27916px**（时间线全量 DOM 行）。修复：`.timeline` 设 `max-height:360px` + `overflow:auto`，页面高度降到 1708px，时间线内部滚动。功能不变（1050 行仍可点击选中/高亮跟随）。
+
 ## v0.3.1 — 修复"双击启动脚本没反应"（2026-11-22）
 
 ### 根因（实测定位，非猜测）
