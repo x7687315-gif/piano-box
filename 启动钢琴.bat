@@ -1,46 +1,68 @@
 @echo off
-chcp 65001 >nul
-title piano-box 音乐盒钢琴 - 启动器
+rem piano-box launcher (ASCII only to avoid cmd codepage issues)
+rem Auto-detect Node even when it is NOT on system PATH (e.g. WorkBuddy private node).
+title piano-box launcher
 cd /d "%~dp0"
 
-echo ============================================
-echo   piano-box 音乐盒钢琴  一键启动器
-echo ============================================
-echo.
+set "NODE_BIN="
 
-where node >nul 2>nul
-if errorlevel 1 (
-    echo [错误] 未检测到 Node.js。
-    echo 请先安装 Node.js 18+ ： https://nodejs.org/
-    echo 安装完成后重新双击本脚本。
+rem 1) node on PATH
+for /f "delims=" %%i in ('where node 2^>nul') do (
+    if not defined NODE_BIN set "NODE_BIN=%%i"
+)
+
+rem 2) WorkBuddy private node (common on this machine)
+if not defined NODE_BIN (
+    for /d %%d in ("%USERPROFILE%\.workbuddy\binaries\node\versions\*") do (
+        if exist "%%d\node.exe" set "NODE_BIN=%%d\node.exe"
+    )
+)
+
+rem 3) standard install locations
+if not defined NODE_BIN if exist "%ProgramFiles%\nodejs\node.exe" set "NODE_BIN=%ProgramFiles%\nodejs\node.exe"
+if not defined NODE_BIN if exist "%ProgramFiles(x86)%\nodejs\node.exe" set "NODE_BIN=%ProgramFiles(x86)%\nodejs\node.exe"
+if not defined NODE_BIN if exist "%LOCALAPPDATA%\Programs\nodejs\node.exe" set "NODE_BIN=%LOCALAPPDATA%\Programs\nodejs\node.exe"
+
+if not defined NODE_BIN (
+    echo [ERROR] Node.js not found.
+    echo Install Node.js 18+ from https://nodejs.org/ then run this again.
     pause
     exit /b 1
 )
 
-for /f "tokens=*" %%v in ('node -v') do set NODEV=%%v
-echo [OK] 检测到 Node  %NODEV%
+echo [OK] Node found: %NODE_BIN%
+for /f "delims=" %%v in ('"%NODE_BIN%" -v') do set "NODEV=%%v"
+echo [OK] Version: %NODEV%
 
-if not exist "node_modules" (
-    echo [提示] 首次运行，正在安装依赖，请稍候...
-    call npm install
+if not exist "node_modules\vite\bin\vite.js" (
+    echo [INFO] Installing dependencies for the first run, please wait...
+    call "%NODE_BIN%" "%NODE_BIN%\..\node_modules\npm\bin\npm-cli.js" install
     if errorlevel 1 (
-        echo [错误] 依赖安装失败，请检查网络后重试。
+        echo [ERROR] npm install failed. Check your network and retry.
         pause
         exit /b 1
     )
-    echo [OK] 依赖安装完成
+    echo [OK] Dependencies installed.
 ) else (
-    echo [OK] 依赖已存在，跳过安装
+    echo [OK] Dependencies already present, skipping install.
 )
 
 echo.
-echo [启动] 正在启动服务，浏览器将自动打开 http://127.0.0.1:5173/
-echo [提示] 关闭本窗口即可停止服务。
+echo [CHECK] Port 5173 status...
+netstat -ano | findstr ":5173 " | findstr "LISTENING" >nul
+if not errorlevel 1 (
+    echo [WARN] Port 5173 is already in use. Another instance may be running.
+    echo         Close the other piano-box window, or open http://127.0.0.1:5174/
+)
+
+echo.
+echo [START] Opening http://127.0.0.1:5173/ in your browser...
+echo [TIP] Keep this window open while playing. Close it to stop the server.
 echo.
 
 start "" http://127.0.0.1:5173/
-call npm run dev
+"%NODE_BIN%" "node_modules\vite\bin\vite.js" --host 127.0.0.1 --strictPort
 
 echo.
-echo 服务已停止。
+echo Server stopped.
 pause

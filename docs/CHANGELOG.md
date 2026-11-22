@@ -1,5 +1,20 @@
 # 变更说明
 
+## v0.3.1 — 修复"双击启动脚本没反应"（2026-11-22）
+
+### 根因（实测定位，非猜测）
+
+用户双击 `启动钢琴.bat` 没反应。用 PowerShell 在干净 PATH 下执行 bat 捕获输出，定位到两个真实问题：
+
+1. **cmd 语法错误（致命）**：`echo [INFO] Installing dependencies (first run), please wait...` 中的 `(first run)` 在 `if (...)` 块内未转义，cmd 预解析整块时报"此时不应有 please"，脚本异常退出 → 窗口一闪而过。修复：去掉括号。
+2. **编码问题**：原 bat 为 UTF-8 含中文，cmd 默认 GBK 解析会乱码。修复：全文改为**纯 ASCII**（0 个非 ASCII 字节）。
+3. **Node 不在系统 PATH**：本机仅有 WorkBuddy 私有 node（`~/.workbuddy/binaries/node/versions/*`），双击环境继承系统 PATH 找不到 node。修复：bat 增加三级探测（PATH → WorkBuddy 私有 → 标准安装位置），用绝对路径启动，不依赖 PATH。
+4. **端口静默切换**：5173 被占用时 vite 会自动换到 5174，但 bat 固定打开 5173，导致浏览器打开错误页面。修复：启动前检测并提示，且给 vite 加 `--strictPort`。
+
+### 验证
+
+在模拟双击的干净 PATH 下执行 bat：成功探测 node v22.22.2 → 跳过依赖安装 → 端口检查 → vite 在 5173 正常启动。同时清理了 5 个历史 E2E 测试残留的 node 进程（它们占用 5173 导致端口冲突）。
+
 ## v0.3.0 — 三踏板 + 新手引导 + 自动弹奏实测 + 代码清理（2026-11-22）
 
 ### 关键结论
