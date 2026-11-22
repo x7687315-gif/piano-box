@@ -1,5 +1,48 @@
 # 变更说明
 
+## v0.3.3 — 修正《Merry Christmas Mr. Lawrence》：换成真正的原曲谱（2026-11-22）
+
+### 问题与根因（用户实测发现，非猜测）
+
+用户实际弹奏后反馈"音都不对，不是同一个曲子"。用严格方法复核后确认：**上一版给的 BitMidi `lawrence.mid` 不是原曲**。
+
+我上一版的"验证"是**不合格的**：只用音符数/音域/音高分布这类统计特征比对，根本不足以证明是同一首曲子。
+
+### 新的验证方法（主题旋律模式比对）
+
+从权威乐谱资料（vivace-music.org 逐小节音名）取得原曲主题的精确音列作判据：
+
+```
+主题第1小节起：F6 – Eb6 – F6 – Bb6 – F6 – Eb6 – F6 – Eb6 – F6 – Bb6 – F6 – Eb6
+第17小节起变奏：Eb4 – F4 – Eb4 – Bb3 – Eb4
+调性：降 D 大调，3/4 拍，约 106 BPM（本作谱面 BPM 68）
+```
+
+据此在旧文件的 12 个轨道里做模式匹配（允许八度等价）→ **全部不匹配**。旧文件实际是管弦乐编曲（program 48 弦乐群/46 英国管/60 竖琴/58/57 长笛/14 铃铛/44 低音提琴），主旋律 70 秒后才进入——与"原曲为纯钢琴、开场即主旋律"完全不符。
+
+### 新曲来源（合法可溯）
+
+PDMX（公共领域 / Creative Commons 乐谱库），经 vivace-music.org 分发：
+
+```
+https://vivace-music.org/library/merry-christmas-mr-lawrence-ryuichi-sakamoto-piano/
+  musicxml/merry-christmas-mr-lawrence-ryuichi-sakamoto.mxl
+```
+
+该 .mxl 为标准 MusicXML 压缩包（832KB score.musicxml），页面标注 **CC0 1.0 / PDMX**。**直接用本项目自研的 MusicXML 导入器读取，无需任何第三方转谱工具。**
+
+### 实测结果
+
+- 解析：BPM 68、1007 事件、1969 音符、741 秒
+- **主题模式匹配：✓ 第 0 音即 F6-Eb6-F6-Bb6-F6-Eb6-F6-Eb6-F6-Bb6-F6-Eb6（与权威乐谱逐音一致）**
+- 浏览器自动弹奏实测：当前音序列 F6 → D#6(Eb6) → F6 → A#6(Bb6)，中段进入 F#5-G#5-C#6（乐谱第15小节 Ab-C-Eb 的转位），无控制台错误
+- 旧错误文件已删除；`local/` 仍在 .gitignore 内，未入库
+
+### 附带改进
+
+- 快捷加载按钮改为加载 MusicXML 原曲谱（`local/*.musicxml`）
+- 抽取 `resetTransformUI()` 消除导入路径间的重复代码
+
 ## v0.3.2 — 导入《Merry Christmas Mr. Lawrence》+ 大曲时间线优化（2026-11-22）
 
 ### 曲子获取（实测，非伪造）

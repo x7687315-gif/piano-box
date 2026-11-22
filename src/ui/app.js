@@ -235,15 +235,7 @@ export function createApp() {
         return;
       }
       // 导入新曲时清空变换状态，并同步滑块 UI 到默认（避免残留误导）
-      transformState = { semitones: 0, duration: 1, velocity: 1, scope: 'all', selected: new Set() };
-      $('transposeSlider').value = 0;
-      $('durationSlider').value = 100;
-      $('velocitySlider').value = 100;
-      $('transposeValue').textContent = '0 半音';
-      $('durationValue').textContent = '1.00×';
-      $('velocityValue').textContent = '1.00×';
-      const allRadio = document.querySelector('input[name="transformScope"][value="all"]');
-      if (allRadio) { allRadio.checked = true; }
+      resetTransformUI();
       setupSong(rawSong);
       // 新手引导：仅首次显示，关闭后记住
       let seen = false;
@@ -351,21 +343,31 @@ export function createApp() {
   ['dragleave', 'drop'].forEach((evt) => dz.addEventListener(evt, (e) => { e.preventDefault(); dz.classList.remove('dragover'); }));
   dz.addEventListener('drop', (e) => importFile(e.dataTransfer.files[0]));
   $('changeSong').addEventListener('click', () => $('fileInput').click());
+
+  // 载入乐曲后重置变换状态（导入新文件时不应保留上一首的移调/力度）
+  function resetTransformUI() {
+    transformState = { semitones: 0, duration: 1, velocity: 1, scope: 'all', selected: new Set() };
+    $('transposeSlider').value = 0;
+    $('durationSlider').value = 100;
+    $('velocitySlider').value = 100;
+    $('transposeValue').textContent = '0 半音';
+    $('durationValue').textContent = '1.00×';
+    $('velocityValue').textContent = '1.00×';
+    const allRadio = document.querySelector('input[name="transformScope"][value="all"]');
+    if (allRadio) allRadio.checked = true;
+  }
+
   // 本地曲库快捷入口（local/ 被 gitignore，仅本机可用）
-  const QUICK_URL = `${import.meta.env.BASE_URL}local/Merry%20Christmas%20Mr.%20Lawrence.mid`;
+  const QUICK_URL = `${import.meta.env.BASE_URL}local/Merry%20Christmas%20Mr.%20Lawrence.musicxml`;
   fetch(QUICK_URL, { method: 'HEAD' }).then((r) => { if (r.ok) $('quickLawrence').hidden = false; }).catch(() => {});
   $('quickLawrence').addEventListener('click', async () => {
     try {
       const r = await fetch(QUICK_URL);
       if (!r.ok) throw new Error('本地曲文件不可用');
-      const buf = await r.arrayBuffer();
-      rawSong = parseMidiToSong(buf, 'Merry Christmas Mr. Lawrence');
-      transformState = { semitones: 0, duration: 1, velocity: 1, scope: 'all', selected: new Set() };
-      $('transposeSlider').value = 0;
-      $('durationSlider').value = 100;
-      $('velocitySlider').value = 100;
+      rawSong = parseMusicXmlToSong(await r.text(), 'Merry Christmas Mr. Lawrence');
+      resetTransformUI();
       setupSong(rawSong);
-      banner(`已加载本地曲：${rawSong.title}`);
+      banner(`已加载本地原曲谱：${rawSong.title}`);
     } catch (err) {
       banner('加载本地曲失败：' + (err.message || '未知错误'), true);
     }

@@ -42,7 +42,7 @@ npm run dev
 
 试玩步骤：
 
-1. 点击左侧「导入乐曲」，选择 `fixtures/demo.mid` 或 `fixtures/demo.musicxml`（内置示例），也可拖放自己的文件。若本机 `local/` 目录放有《Merry Christmas Mr. Lawrence》，会出现"♪ 加载"按钮，点一下即载入（该目录被 .gitignore 排除，不会上传）。
+1. 点击左侧「导入乐曲」，选择 `fixtures/demo.mid` 或 `fixtures/demo.musicxml`（内置示例），也可拖放自己的文件。若本机 `local/` 目录放有《Merry Christmas Mr. Lawrence》原曲谱（MusicXML，PDMX/CC0 授权），会出现"♪ 加载"按钮，点一下即载入（该目录被 .gitignore 排除，不会上传）。
 2. 默认「音乐盒 · 手动」模式：敲键盘任意键（或点「下一步」），逐个奏响音符 / 和弦。
 3. 切到「音乐盒 · 自动」模式：点播放，听整首；可暂停、继续、停止、调 BPM / 音量、开循环。
 4. 用「变化性编辑」：拖移调 / 时长 / 力度滑块听效果；点右侧时间线的行选中单个事件，切到「选中事件」作用域即可只改这些音；点「重置所有变化」回到原曲。
