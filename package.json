@@ -1,0 +1,21 @@
+{
+  "name": "piano-box",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "交互式钢琴应用：音乐盒模式 + 自由钢琴模式（架构预留）",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "node --test test/*.test.js",
+    "fixture": "node fixtures/make-midi.mjs"
+  },
+  "dependencies": {
+    "midi-file": "^1.2.4",
+    "tone": "^15.1.22"
+  },
+  "devDependencies": {
+    "vite": "^7.1.0"
+  }
+}
